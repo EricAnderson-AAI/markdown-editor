@@ -1,0 +1,20 @@
+{
+    "config": {
+        "app_title": "HackDown",
+        "app_name_about": "HackDown",
+       "linting.enabled_by_default": true
+    },
+    "name": "HackDown",
+    "version": "0.1.0-0",
+    "apiVersion": "0.1.0",
+    "homepage": "http://hyperlounge.com",
+	"repository": {
+		"type": "git",
+		"branch": "",
+		"SHA": ""
+	},
+    "devDependencies": {
+        "grunt": "0.4.1",
+        "grunt-cli": "0.1.9"
+    }
+}
