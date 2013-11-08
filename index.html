@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Markdown Editor</title>
+    <title>HackDown</title>
     <script src="marked.js"></script>
     <script src="highlight.pack.js"></script>
     <script src="codemirror/lib/codemirror.js"></script>
@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="default.css">
     <style>
         .CodeMirror pre {
-            line-height: 14px;
+            line-height: 24px;
         }
 
         #in, .CodeMirror {
@@ -25,7 +25,8 @@
             bottom: 0;
             width: 50%;
             overflow: auto;
-            font-size: 12px;
+            font-size: 16px;
+            font-family: Monaco, "Lucida Console", monospace;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
@@ -103,6 +104,7 @@
         }
 
         h1, h2, h3, h4, h5, h6 {
+            font-family: Tahoma, Arial, sans-serif;
             font-weight: normal;
             color: #111;
             line-height: 1em;

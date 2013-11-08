@@ -1,91 +1,41 @@
-/**
- * Created with IntelliJ IDEA.
- * User: derekking
- * Date: 07/11/2013
- * Time: 15:15
- * To change this template use File | Settings | File Templates.
- */
 
-// Because highlight.js is a bit awkward at times
-var languageOverrides = {
-	js: 'javascript',
-	html: 'xml'
-}
+var languageOverrides,
+	editor;
 
-marked.setOptions({
-	highlight: function (code, lang) {
-		if (languageOverrides[lang]) lang = languageOverrides[lang];
-		return hljs.LANGUAGES[lang] ? hljs.highlight(lang, code).value : code;
-	}
-});
-
-function update(e) {
-	var val = e.getValue();
-
-	setOutput(val);
-
-	clearTimeout(hashto);
-	hashto = setTimeout(updateHash, 1000);
-
-	if (! changed) {
-		changed = true;
-		updateFileName();
-	}
-}
-
-function setOutput(val) {
-	val = val.replace(/<equation>((.*?\n)*?.*?)<\/equation>/ig, function (a, b) {
-		return '<img src="http://latex.codecogs.com/png.latex?' + encodeURIComponent(b) + '" />';
-	});
-
-	document.getElementById('out').innerHTML = marked(val);
-}
-
-var editor = CodeMirror.fromTextArea(document.getElementById('code'), {
-	mode: 'gfm',
-	lineNumbers: true,
-	matchBrackets: true,
-	lineWrapping: true,
-	theme: 'default',
-	onChange: update
-});
+initializeEditor();
 
 var fs = appshell.fs,
 	app = appshell.app,
-	shellAPI = appshell.shellAPI = {},
+	handlers = {},
 	currentPath,
 	pendingPath,
 	exporting = false,
 	changed = false,
 	newFile = false;
 
+/*
+This is how we receive commands from the native code
+ */
+appshell.shellAPI = {
+	executeCommand: function (command) {
+		var handler = handlers[command];
+		handler && handler();
+	}
+};
+
+/*
+Create a "File" menu
+ */
 app.addMenu('File', 'file');
+
+/*
+Add a "New" option
+ */
 app.addMenuItem('file', 'New', 'file.new', 'Cmd-N', '', '', '');
-app.addMenuItem('file', 'Open', 'file.open', 'Cmd-O', '', '', '');
-app.addMenuItem('file', 'Save', 'file.save', 'Cmd-S', '', '', '');
-app.addMenuItem('file', 'Save As', 'file.saveas', 'Cmd-Shift-S', '', '', '');
-app.addMenuItem('file', 'Export HTML', 'file.export', 'Cmd-E', '', '', '');
-app.addMenuItem('file', 'Quit', 'file.quit', 'Cmd-Q', '', '', '');
 
-shellAPI.executeCommand = function (command) {
-	var handlers = {
-		'file.new': cmdFileNew,
-		'file.open': cmdFileOpen,
-		'file.save': cmdFileSave,
-		'file.saveas': cmdFileSaveAs,
-		'file.export': cmdFileExport,
-		'file.quit': cmdFileQuit,
-		'file.close_window': cmdCloseWindow
-	};
+handlers['file.new'] = handleFileNew;
 
-	var handler = handlers[command];
-
-	handler && handler();
-}
-
-cmdFileNew();
-
-function cmdFileNew() {
+function handleFileNew() {
 	var discard = false;
 	if (changed) {
 		discard = confirm('Discard changes?');
@@ -93,6 +43,7 @@ function cmdFileNew() {
 	if (!changed || discard) {
 		currentPath = 'Untitled.md';
 		editor.setValue('');
+		editor.focus();
 		changed = false;
 		updateFileName();
 		newFile = true;
@@ -100,15 +51,36 @@ function cmdFileNew() {
 	}
 }
 
-function cmdFileOpen() {
+/*
+Add an "Open" option
+ */
+app.addMenuItem('file', 'Open', 'file.open', 'Cmd-O', '', '', '');
+
+handlers['file.open'] = handleFileOpen;
+
+function handleFileOpen() {
 	var discard = false;
 	if (changed) {
 		discard = confirm('Discard changes?');
 	}
-	if (!changed || discard) fs.showOpenDialog(false, false, 'Open File', null, ['md', 'markdown', 'txt'], onFileChosen);
+	if (!changed || discard) fs.showOpenDialog(
+		false,
+		false,
+		'Open File',
+		null,
+		['md', 'markdown', 'txt'],
+		onFileChosen
+	);
 }
 
-function cmdFileSave() {
+/*
+Add a "Save" option
+ */
+app.addMenuItem('file', 'Save', 'file.save', 'Cmd-S', '', '', '');
+
+handlers['file.save'] = handleFileSave;
+
+function handleFileSave() {
 	if (getFolder(currentPath) === '') {
 		exporting = false;
 		fs.showSaveDialog('Save As', null, currentPath, onSaveConfirmed);
@@ -118,17 +90,43 @@ function cmdFileSave() {
 	}
 }
 
-function cmdFileSaveAs() {
+/*
+Add a "Save As" option
+ */
+app.addMenuItem('file', 'Save As', 'file.save_as', 'Cmd-Shift-S', '', '', '');
+
+handlers['file.save_as'] = handleFileSaveAs;
+
+function handleFileSaveAs() {
 	exporting = false;
-	fs.showSaveDialog('Save As', getFolder(currentPath), getBaseName(currentPath) + ' copy' + getExtension(currentPath), onSaveConfirmed)
+	fs.showSaveDialog(
+		'Save As',
+		getFolder(currentPath),
+		getBaseName(currentPath) + ' copy' + getExtension(currentPath),
+		onSaveConfirmed
+	);
 }
 
-function cmdFileExport() {
+/*
+Add an "Export HTML" option
+ */
+app.addMenuItem('file', 'Export HTML', 'file.export', 'Cmd-E', '', '', '');
+
+handlers['file.export'] = handleFileExport;
+
+function handleFileExport() {
 	exporting = true;
 	fs.showSaveDialog('Export HTML As', getFolder(currentPath), getBaseName(currentPath) + '.html', onSaveConfirmed)
 }
 
-function cmdFileQuit() {
+/*
+Add a "Quit" option
+ */
+app.addMenuItem('file', 'Quit', 'file.quit', 'Cmd-Q', '', '', '');
+
+handlers['file.quit'] = handleFileQuit;
+
+function handleFileQuit() {
 	var discard = false;
 	if (changed) {
 		discard = confirm('Discard changes?');
@@ -136,13 +134,24 @@ function cmdFileQuit() {
 	if (!changed || discard) app.quit();
 }
 
+handleFileNew();
+
+/*
+Handle the window being closed
+ */
 // TODO: this isn't working properly
-function cmdCloseWindow() {
+handlers['file.close_window'] = handleCloseWindow;
+
+function handleCloseWindow() {
 	if (changed) {
 		app.abortQuit();
-		cmdFileSave();
+		handleFileSave();
 	}
 }
+
+/*
+Callbacks
+ */
 
 function onFileChosen(err, selection) {
 	if (err === fs.NO_ERROR) {
@@ -157,6 +166,7 @@ function onFileRead(err, data) {
 	if (err === fs.NO_ERROR) {
 		currentPath = pendingPath;
 		editor.setValue(data);
+		editor.focus();
 		changed = false;
 		updateFileName();
 		newFile = false;
@@ -187,6 +197,10 @@ function onSaveConfirmed(err, path) {
 	}
 }
 
+/*
+Helpers
+ */
+
 function writeFile(path) {
 	if (exporting) {
 		pendingPath = null;
@@ -215,12 +229,19 @@ function updateFileName() {
 }
 
 function updateMenus() {
-	app.setMenuItemState('file.saveas', !newFile, false);
+	app.setMenuItemState('file.save_as', !newFile, false);
 }
 
 function getHTML() {
 	var output = document.getElementById('out').innerHTML;
-	var html = '<!DOCTYPE html><html><head><title>$title</title></head><body>$output</body></html>';
+	var html =
+		'<!DOCTYPE html>' +
+		'<html>' +
+		'<head>' +
+		'<title>$title</title>' +
+		'</head>' +
+		'<body>$output</body>' +
+		'</html>';
 	html = html.replace(/\$title/, document.title);
 	html = html.replace(/\$output/, output);
 	return html;
@@ -238,28 +259,46 @@ function getExtension(path) {
 	return path.replace(/^.*?[^\/]+(\.\w+$)/, '$1') || '';
 }
 
-var hashto;
-
-changed = true;
-
-function updateHash() {
-	window.location.hash = btoa(RawDeflate.deflate(unescape(encodeURIComponent(editor.getValue()))))
-}
-
-if (window.location.hash) {
-	var h = window.location.hash.replace(/^#/, '');
-	if (h.slice(0, 5) == 'view:') {
-		setOutput(decodeURIComponent(escape(RawDeflate.inflate(atob(h.slice(5))))));
-		document.body.className = 'view';
-	} else {
-		editor.setValue(decodeURIComponent(escape(RawDeflate.inflate(atob(h)))))
-		update(editor);
-		editor.focus();
+function initializeEditor() {
+// Because highlight.js is a bit awkward at times
+	languageOverrides = {
+		js: 'javascript',
+		html: 'xml'
 	}
-} else {
-	update(editor);
-	editor.focus();
+
+	marked.setOptions({
+		highlight: function (code, lang) {
+			if (languageOverrides[lang]) lang = languageOverrides[lang];
+			return hljs.LANGUAGES[lang] ? hljs.highlight(lang, code).value : code;
+		}
+	});
+
+	editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+		mode: 'gfm',
+		lineNumbers: true,
+		matchBrackets: true,
+		lineWrapping: true,
+		theme: 'default',
+		onChange: update
+	});
 }
 
-changed = false;
+function update(e) {
+	var val = e.getValue();
+
+	setOutput(val);
+
+	if (! changed) {
+		changed = true;
+		updateFileName();
+	}
+}
+
+function setOutput(val) {
+	val = val.replace(/<equation>((.*?\n)*?.*?)<\/equation>/ig, function (a, b) {
+		return '<img src="http://latex.codecogs.com/png.latex?' + encodeURIComponent(b) + '" />';
+	});
+
+	document.getElementById('out').innerHTML = marked(val);
+}
 
